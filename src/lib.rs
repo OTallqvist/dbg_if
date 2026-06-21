@@ -14,7 +14,8 @@
 ///     dbg!(x + 1);
 ///     dbg!(x + 2, Once);
 ///     dbg!(x + 3, IfNe, u8);
-///     dbg!(x + 4, IfHashNe)
+///     dbg!(x + 4, IfHashNe);
+///     dbg!(x + 5, IfElapsed, 1 s)
 /// }
 ///
 /// x = f(x);
@@ -28,6 +29,7 @@
 /// [src/lib.rs:11:9] x + 2 = 2
 /// [src/lib.rs:12:9] x + 3 = 3
 /// [src/lib.rs:13:9] x + 4 = 4
+/// [src/lib.rs:14:9] x + 5 = 5
 /// [src/lib.rs:10:9] x + 1 = 1 // Only the first statement will print again.
 /// ````
 #[macro_export]
@@ -58,6 +60,14 @@ macro_rules! dbg_if {
 
     ($val:expr, IfHashNe, $ne:expr) => {
         ::dbg_if::dbg_if_hash_ne!($val, $ne)
+    };
+
+    ($val:expr, IfElapsed, $time:literal $unit:ident ) => {
+        ::dbg_if::dbg_if_elapsed!($time $unit, $val)
+    };
+
+    ($val:expr, IfElapsed, $time:expr) => {
+        ::dbg_if::dbg_if_elapsed!($time, $val)
     };
 }
 
@@ -293,6 +303,98 @@ macro_rules! dbg_if_hash_ne {
     ($($val:expr),+ $(,)?) => {
 
    ($($crate::dbg_if_hash_ne!($val)),+,)
+    };
+}
+
+///Calls [`std::dbg`] if the time since it last called [`std::dbg`] exceeded the specified duration.
+///There are two ways to specify the duration.:
+/// * Number literal with one of the suffixes: "s", "seconds", "ms", or "milliseconds".
+/// * Expression of the type [`std::time::Duration`]
+///
+/// ## Non constant time
+/// A non constant [`std::time::Duration`] can be given as the duration. In this case the duration
+/// is evaluated every time macro's code runs. This way the duration can be varied at runtime.
+///
+///```rust
+///use dbg_if::dbg_if_elapsed;
+///use std::time::Duration;
+///for num in 1..10000 {
+///    dbg_if_elapsed!(1000 ms, num); //Outputs num every 1000 milliseconds
+///    dbg_if_elapsed!(10 seconds, num + 1); //Outputs num + 13 every 10 seconds
+///    dbg_if_elapsed!(
+///        Duration::from_secs_f32(10. / (num as f32 + 1.).log2() + 0.1),
+///        num + 2
+///    ); //The output speed approaches 0.1 seconds as num increases
+///}
+///```
+#[macro_export]
+macro_rules! dbg_if_elapsed {
+    ($duration:literal ms, $val:expr $(,)?) => {
+        $crate::dbg_if_elapsed_common!(($duration * 1000) as u64, $val);
+    };
+    ($duration:literal milliseconds, $val:expr $(,)?) => {
+        $crate::dbg_if_elapsed_common!(($duration * 1000) as u64, $val);
+    };
+    ($duration:literal seconds, $val:expr $(,)?) => {
+        $crate::dbg_if_elapsed_common!(($duration * 1000 * 1000) as u64, $val);
+    };
+    ($duration:literal s, $val:expr $(,)?) => {
+        $crate::dbg_if_elapsed_common!(($duration * 1000 * 1000) as u64, $val);
+    };
+    ($duration:expr , $val:expr $(,)?) => {
+        $crate::dbg_if_elapsed_common!($duration.as_micros() as u64, $val);
+    };
+    ($duration:literal ms, $($val:expr),+ $(,)?) => {
+       ($($crate::dbg_if_elapsed!($duration ms, $val)),+,)
+    };
+    ($duration:literal milliseconds, $($val:expr),+ $(,)?) => {
+       ($($crate::dbg_if_elapsed!($duration milliseconds, $val)),+,)
+    };
+    ($duration:literal seconds, $($val:expr),+ $(,)?) => {
+       ($($crate::dbg_if_elapsed!($duration seconds, $val)),+,)
+    };
+    ($duration:literal s, $($val:expr),+ $(,)?) => {
+       ($($crate::dbg_if_elapsed!($duration s, $val)),+,)
+    };
+    ($duration:expr, $($val:expr),+ $(,)?) => {
+       ($($crate::dbg_if_elapsed!($duration, $val)),+,)
+    };
+}
+
+#[doc(hidden)]
+#[macro_export]
+//Common code between the branches in [`dbg_if_elapsed!`]
+macro_rules! dbg_if_elapsed_common {
+    ($duration:expr , $val:expr) => {
+        match $val {
+            tmp => {
+                use ::core::sync::atomic::{AtomicU64, Ordering};
+                use ::std::time::UNIX_EPOCH;
+                //Initial value does not matter
+                static LAST_TRIGGERED: AtomicU64 = AtomicU64::new(0);
+                let duration = $duration;
+                let current_time = UNIX_EPOCH.elapsed().expect("The current time shouldn't be before 1970")
+                    //WARNING: OMG!! Duration.as_micros() as u64 will overflow in ~584 000 years!!!!!
+                    .as_micros() as u64;
+                if LAST_TRIGGERED
+                    .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |t| {
+                        (current_time - t >= duration)
+                            .then_some(current_time)
+                    })
+                    .is_ok()
+                {
+                    ::std::eprintln!(
+                        "[{}:{}:{}] {} = {:#?}",
+                        ::std::file!(),
+                        ::std::line!(),
+                        ::std::column!(),
+                        ::std::stringify!($val),
+                        &tmp
+                    );
+                }
+                tmp
+            }
+        };
     };
 }
 
