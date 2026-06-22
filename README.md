@@ -44,6 +44,22 @@ s.push('!');
 f(&s); // Outputs: [src/lib.rs:37:9] x = "hello!"
 ```
 
+The macro [`dbg_if_elapsed!`] is a repeating timer that prints when the time since it last printed 
+has exceeded the specified duration.
+
+```rust
+use dbg_if::dbg_if_elapsed;
+use std::time::Duration;
+for num in 1..10000 {
+    dbg_if_elapsed!(1000 ms, num); //Outputs num every 1000 milliseconds
+    dbg_if_elapsed!(10 seconds, num + 1); //Outputs num + 13 every 10 seconds
+    dbg_if_elapsed!(
+        Duration::from_secs_f32(10. / (num as f32 + 1.).log2() + 0.1),
+        num + 2
+    ); //The output speed approaches 0.1 seconds as num increases
+}
+```
+
 The sister macros [`once!`], [`was_ne!`], and [`was_hash_ne!`] return true instead
 of printing.
 
