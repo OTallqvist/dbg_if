@@ -106,6 +106,29 @@ mod test_output {
         assert_eq!(&output[..], "x = 1\nx = 2");
     }
 
+    #[test]
+    fn test_dbg_if_elapsed() {
+        use std::{
+            thread::sleep,
+            time::{Duration, Instant},
+        };
+        fn t(duration: Duration) {
+            let start_time = Instant::now();
+            let x = 1isize;
+            loop {
+                dbg_if_elapsed!(duration, x, x + 2);
+                sleep(Duration::from_millis(1));
+                if start_time.elapsed() - Duration::from_millis(1) > duration {
+                    break;
+                }
+            }
+
+            assert!(start_time.elapsed() + Duration::from_millis(10) > duration);
+        }
+        t(Duration::from_millis(100));
+        t(Duration::from_secs(1));
+    }
+
     #[ignore]
     #[test]
     fn test_pass_thru() {
