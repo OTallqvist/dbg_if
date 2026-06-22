@@ -320,7 +320,7 @@ macro_rules! dbg_if_hash_ne {
 ///use std::time::Duration;
 ///for num in 1..10000 {
 ///    dbg_if_elapsed!(1000 ms, num); //Outputs num every 1000 milliseconds
-///    dbg_if_elapsed!(10 seconds, num + 1); //Outputs num + 13 every 10 seconds
+///    dbg_if_elapsed!(10 seconds, num + 1); //Outputs num + 1 every 10 seconds
 ///    dbg_if_elapsed!(
 ///        Duration::from_secs_f32(10. / (num as f32 + 1.).log2() + 0.1),
 ///        num + 2
